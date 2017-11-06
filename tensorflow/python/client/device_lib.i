@@ -21,6 +21,7 @@ limitations under the License.
 #include "tensorflow/core/framework/device_attributes.pb.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/public/session_options.h"
+#include <string>  /* for stoi */
 
 namespace tensorflow {
 namespace swig {
@@ -29,6 +30,17 @@ static std::vector<string> ListDevices(TF_Status* out_status) {
   std::vector<string> output;
   SessionOptions options;
   std::vector<Device*> devices;
+
+  /* == Beginning of Lablup Patch == */
+  /* monkey-patch for the cases when calling list_devices() first */
+  options.config.set_allow_soft_placement(true);
+  const char *env_parallelism = std::getenv("OMP_NUM_THREADS");
+  int p = (env_parallelism != nullptr) ? std::stoi(env_parallelism, nullptr) : 2;
+  options.config.set_intra_op_parallelism_threads(p);
+  GPUOptions *gpuopts = options.config.mutable_gpu_options();
+  gpuopts->set_per_process_gpu_memory_fraction(0.32);
+  /* == End of Lablup Patch == */
+
   Status status = DeviceFactory::AddDevices(
       options, "" /* name_prefix */, &devices);
   if (!status.ok()) {

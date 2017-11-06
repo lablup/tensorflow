@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import functools
+import os
 import re
 import threading
 
@@ -606,8 +607,15 @@ class BaseSession(SessionInterface):
       self._config = config
       self._add_shapes = config.graph_options.infer_shapes
     else:
-      self._config = None
+      self._config = config_pb2.ConfigProto()
       self._add_shapes = False
+
+    # == Beginning of Lablup Patch ==
+    # Enforce the GPU memory fraction limit.
+    self._config.allow_soft_placement = True
+    self._config.intra_op_parallelism_threads = int(os.environ.get('OMP_NUM_THREADS', 2))
+    self._config.gpu_options.per_process_gpu_memory_fraction = 0.32
+    # == End of Lablup Patch ==
 
     # pylint: disable=protected-access
     # We cache _USE_C_API's value because some test cases will create a session
@@ -616,7 +624,7 @@ class BaseSession(SessionInterface):
     # pylint: enable=protected-access
 
     self._session = None
-    opts = tf_session.TF_NewSessionOptions(target=self._target, config=config)
+    opts = tf_session.TF_NewSessionOptions(target=self._target, config=self._config)
     try:
       with errors.raise_exception_on_not_ok_status() as status:
         if self._created_with_new_api:
